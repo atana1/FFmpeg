@@ -96,6 +96,7 @@ OBJS-$(CONFIG_LADSPA_FILTER)                 += af_ladspa.o
 OBJS-$(CONFIG_LOUDNORM_FILTER)               += af_loudnorm.o
 OBJS-$(CONFIG_LOWPASS_FILTER)                += af_biquads.o
 OBJS-$(CONFIG_PAN_FILTER)                    += af_pan.o
+OBJS-$(CONFIG_PEAKPOINTS_FILTER)             += af_peakpoints.o
 OBJS-$(CONFIG_REPLAYGAIN_FILTER)             += af_replaygain.o
 OBJS-$(CONFIG_RESAMPLE_FILTER)               += af_resample.o
 OBJS-$(CONFIG_RUBBERBAND_FILTER)             += af_rubberband.o
