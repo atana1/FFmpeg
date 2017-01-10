@@ -125,10 +125,10 @@ static void getFingerPrint(FFTComplex *tab, int *bins, int bin_size, size_t time
     // allocate memmory for fp if not allocated
     if (!fp) {
         fp = av_malloc(sizeof(FingerPrint));
-        fp->keyPoints = av_malloc_array(KEYPOINTCOUNT-1, sizeof(int));
+        fp->keyPoints = av_malloc_array(KEYPOINTCOUNT, sizeof(int));
     }
 
-    range = av_malloc_array(KEYPOINTCOUNT-1, sizeof(int));
+    range = av_malloc_array(KEYPOINTCOUNT, sizeof(int));
 
     // memmory check
     if (!range) {
@@ -137,7 +137,7 @@ static void getFingerPrint(FFTComplex *tab, int *bins, int bin_size, size_t time
 
     memcpy(range, bins, bin_size * sizeof(int));
 
-    highscores = av_malloc_array(KEYPOINTCOUNT-1, sizeof(int));
+    highscores = av_malloc_array(KEYPOINTCOUNT, sizeof(int));
 
     // memmory check
     if (!highscores) {
