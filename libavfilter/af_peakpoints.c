@@ -61,7 +61,7 @@ typedef struct {
 
 
 /* returns maximum value from an array conditioned on start and end index */
-static double getMax(double *res_arr, int startIndex, int endIndex) {
+/*static double getMax(double *res_arr, int startIndex, int endIndex) {
     int i;
     double max = res_arr[startIndex];
     for (i = startIndex; i <= endIndex; i++) {
@@ -70,10 +70,10 @@ static double getMax(double *res_arr, int startIndex, int endIndex) {
 	    }
     }
     return max;
-}
+}*/
 
 /* Stores peak frequency for each window(of chunkSize) in peaks array */
-static void getPeakPointInChunk(int chunkSize, double *res_arr, int size, double *peaks) {
+/*static void getPeakPointInChunk(int chunkSize, double *res_arr, int size, double *peaks) {
     int i = 0, peakIndex = 0;
     int startIndex = 0;
     double max;
@@ -86,10 +86,10 @@ static void getPeakPointInChunk(int chunkSize, double *res_arr, int size, double
        }
        i += 1;
     }
-}
+}*/
 
-/* Find out the range */
-static int getIndex(int freq, int *range) {
+/* Find out the range in which the frequency point lies*/
+static int getRangeIndex(int freq, int *range) {
     int i = 0;
     void *avc;
 
@@ -115,11 +115,11 @@ static double getAbs(FFTComplex cn) {
 }
 
 /* Finger printing */
-static FingerPrint *getFingerPrint(AVFilterContext *ctx, FFTComplex *tab,
-        int *bins, int bin_size, size_t time) {
+static FingerPrint *getFingerPrint(AVFilterContext *ctx, PeakPointsContext *p,
+        FFTComplex *tab, int *bins, int bin_size, size_t time) {
     int freq, index;
     double mag;
-    int *range, *highscores;
+    int *interval, *maxscores;
     FingerPrint *fp = NULL;
 
     //av_log(ctx, AV_LOG_INFO, "Inside getFingerPrint method\n");
@@ -128,45 +128,54 @@ static FingerPrint *getFingerPrint(AVFilterContext *ctx, FFTComplex *tab,
     if (!fp) {
         fp = av_malloc(sizeof(FingerPrint));
         fp->keyPoints = av_malloc_array(bin_size, sizeof(int));
+
+        //initalize all elements with zero
+        memset(fp->keyPoints, 0, bin_size * sizeof(*fp->keyPoints));
     }
 
-    range = av_malloc_array(bin_size, sizeof(*range));
+    interval = av_malloc_array(bin_size, sizeof(*interval));
 
     // memmory check
-    if (!range) {
-        av_log(ctx, AV_LOG_ERROR, "Can't allocate memmory for range array\n");
+    if (!interval) {
+        av_log(ctx, AV_LOG_ERROR, "Can't allocate memmory for interval array\n");
     }
     //
     //av_log(ctx, AV_LOG_INFO, "copying\n");
-    memcpy(range, bins, bin_size * sizeof(int));
+    memcpy(interval, bins, bin_size * sizeof(int));
     //av_log(ctx, AV_LOG_INFO, "copying finished\n");
 
-    highscores = av_malloc_array(bin_size, sizeof(*highscores));
+    maxscores = av_malloc_array(bin_size, sizeof(*maxscores));
 
     //set all elements to zero
     //av_log(ctx, AV_LOG_INFO, "setting\n");
-    memset(highscores, 0, bin_size * sizeof(*highscores));
+    memset(maxscores, 0, bin_size * sizeof(*maxscores));
+
+    /*for (int l =0; l < 5; l++) {
+        av_log(ctx, AV_LOG_INFO, "%d, ", highscores[l]);
+    }
+    av_log(ctx, AV_LOG_INFO, "\n");*/
+
     //av_log(ctx, AV_LOG_INFO, "setting finished\n");
 
     // memmory check
-    if (!highscores) {
-        av_log(ctx, AV_LOG_ERROR, "Can't allocate memmory for highscore array\n");
+    if (!maxscores) {
+        av_log(ctx, AV_LOG_ERROR, "Can't allocate memmory for maxscore array\n");
     }
 
     //av_log(ctx, AV_LOG_INFO, "Before the loop\n");
-    for (freq = 0; freq < 16; freq++) {
-        // Get magnitude, in decibel
+    for (freq = 0; freq < p->windowSize; freq++) {
+        // calculate magnitude in decibel
         //av_log(ctx, AV_LOG_INFO, "freq is %d\n", freq);
         mag = log(getAbs(tab[freq]) + 1);
         //av_log(ctx, AV_LOG_INFO, "got magnitude\n");
 
-        // Find out the range in which it lies
-        index = getIndex(freq, range);
+        // Find out the interval in which it lies
+        index = getRangeIndex(freq, interval);
         //av_log(ctx, AV_LOG_INFO, "got index %d\n", index);
 
         // Save the highest magnitude and corresponding frequency
-        if (mag > highscores[index]) {
-            highscores[index] = mag;
+        if (mag > maxscores[index]) {
+            maxscores[index] = mag;
             fp->keyPoints[index] = freq;
         }
         //av_log(ctx, AV_LOG_INFO, "saved\n");
@@ -174,14 +183,19 @@ static FingerPrint *getFingerPrint(AVFilterContext *ctx, FFTComplex *tab,
 
     // key point from each bins are collected; assign time
     fp->time = time;
+
+    // free allocated memories.
+    av_freep(&interval);
+    av_freep(&maxscores);
     return fp;
 }
 
 /* Get peaks points from windowed frequency domain data*/
 static int getPeakPoints(AVFilterContext *ctx, PeakPointsContext *ppc) {
-    int i, m, k, size, chunkSize, pSize, chunkSampleSize, resSize, fft_size;
-    int j, inverse;
-    double *fft_res;
+    int i, m, k, size, chunkSize, pSize, chunkSampleSize, resSize;
+    int j, inverse, delta, bin_size, val, t;
+    int *bins;
+    //double *fft_res;
     //void *avc;
     FingerPrint *fp;
     //RDFTContext *rdftC;
@@ -189,17 +203,41 @@ static int getPeakPoints(AVFilterContext *ctx, PeakPointsContext *ppc) {
     FFTComplex *tab;
     //FFTSample *data;
 
-    // frequency bins
-    int bins[] = {40, 80, 120, 180, UPPER_LIMIT-1};
-    int bin_size = 5;
-    ppc->bin_size = bin_size;
-
     size = ppc->index;
     m = log2(ppc->windowSize);
-    fft_size = 1 << m;
+    //fft_size = 1 << m;
     chunkSize = ppc->windowSize;
     chunkSampleSize = size/chunkSize;
     resSize = chunkSize * chunkSampleSize;
+
+    // freqency bins
+    delta = 50;
+    val = 0;
+    t = 0;
+
+    // estimate bin size
+    if ((chunkSize % delta) == 0) {
+        bin_size = chunkSize/delta;
+    } else {
+        bin_size = chunkSize/delta + 1;
+    }
+
+    // allocating memory for bins array
+    bins = av_malloc_array(bin_size, sizeof(*bins));
+
+    // memory check
+    if (!bins) {
+        av_log(ctx, AV_LOG_ERROR, "Can't allocate memory for bins\n");
+    }
+
+    // fill bins with range values
+    while (val < chunkSize) {
+        bins[t] = val + delta;
+        val =  val + delta;
+        t = t + 1;
+    }
+
+    ppc->bin_size = bin_size;
 
     //fft_res = av_malloc_array(resSize, sizeof(double));
 
@@ -210,9 +248,9 @@ static int getPeakPoints(AVFilterContext *ctx, PeakPointsContext *ppc) {
 
     ppc->fprints = av_malloc_array(resSize, sizeof(FingerPrint));
 
-    // memmory check
+    // memory check
     if (!ppc->fprints) {
-        av_log(ctx, AV_LOG_ERROR, "Can't allocate memmory for fingerprints\n");
+        av_log(ctx, AV_LOG_ERROR, "Can't allocate memory for fingerprints\n");
     }
 
     //print chunk size
@@ -223,7 +261,7 @@ static int getPeakPoints(AVFilterContext *ctx, PeakPointsContext *ppc) {
 
     // memmory check
     if (!tab) {
-        av_log(ctx, AV_LOG_ERROR, "Cann't allocate memmory for complex data\n");
+        av_log(ctx, AV_LOG_ERROR, "Cann't allocate memory for complex data\n");
     }
 
     //rdftC = av_rdft_init(m, DFT_R2C);
@@ -261,8 +299,9 @@ static int getPeakPoints(AVFilterContext *ctx, PeakPointsContext *ppc) {
 
         // get finger print
         //av_log(ctx, AV_LOG_INFO, "calling getFingerprint method\n");
-        fp = getFingerPrint(ctx, tab, bins, bin_size, ppc->time);
+        fp = getFingerPrint(ctx, ppc, tab, bins, bin_size, ppc->time);
         //av_log(ctx, AV_LOG_INFO, "after fingerprint method\n");
+        ppc->time = ppc->time + 1;
         ppc->fprints[j] = *fp;
         //av_log(ctx, AV_LOG_INFO, "stored fp\n");
 
@@ -285,11 +324,28 @@ static int getPeakPoints(AVFilterContext *ctx, PeakPointsContext *ppc) {
     }*/
 
     //getPeakPointInChunk(chunkSize, fft_res, resSize, ppc->peaks);
+
+    // free allocated memories
     //av_freep(&data);
     av_freep(&tab);
+    av_freep(&bins);
     //av_freep(&fft_res);
     //av_log(ctx, AV_LOG_INFO, "returning \n");
     return 1;
+}
+
+static void free_fingerprintstruct(AVFilterContext *ctx, FingerPrint *fp, int size) {
+    int i;
+
+    // free keyPoints array first
+    //av_log(ctx, AV_LOG_INFO, "freeing keypoints..\n");
+    for (i = 0; i < size; i++) {
+        av_freep(&fp[i].keyPoints);
+        free(&fp[i]);
+    }
+    //av_log(ctx, AV_LOG_INFO, "freed keypoints\n");
+    //av_freep(&fp);
+    //av_log(ctx, AV_LOG_INFO, "freed fp\n");
 }
 
 
@@ -347,7 +403,8 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
 
         // free peaks and set size to zero
         //av_freep(&p->peaks);
-        av_freep(&p->fprints); // check if memory to be freed hierarchial fashion
+        //av_freep(&p->fprints); // check if memory to be freed hierarchial fashion
+        free_fingerprintstruct(ctx, p->fprints, p->size);
         p->size = 0;
     } else if (p->size || !ret) {
         av_log(ctx, AV_LOG_ERROR, "Finger prints not retrieved\n");
@@ -385,7 +442,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *samples)
         if (p->index == SIZECHECK) {
             // get peak points stats
             ppointsStats(ctx, p);
-            p->time = p->time + 1;
+            //p->time = p->time + 1;
             p->index = 0;
             p->buffFlag = 1;
         }
