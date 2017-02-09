@@ -115,6 +115,7 @@ void avfilter_register_all(void)
     REGISTER_FILTER(LOWPASS,        lowpass,        af);
     REGISTER_FILTER(PAN,            pan,            af);
     REGISTER_FILTER(PEAKPOINTS,     peakpoints,     af);
+    REGISTER_FILTER(PEAKPOINTS2,    peakpoints2,    af);
     REGISTER_FILTER(REPLAYGAIN,     replaygain,     af);
     REGISTER_FILTER(RESAMPLE,       resample,       af);
     REGISTER_FILTER(RUBBERBAND,     rubberband,     af);
