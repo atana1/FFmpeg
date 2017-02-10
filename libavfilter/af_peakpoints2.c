@@ -92,9 +92,9 @@ static int getRangeIndex(AVFilterContext *ctx, int freq, int *range) {
     int i = 0;
 
     // null check
-    if (!range) {
+    /*if (!range) {
         av_log(ctx, AV_LOG_ERROR, "range is NULL\n");
-    }
+    }*/
 
     while (range[i] < freq) {
         i++;
@@ -105,19 +105,19 @@ static int getRangeIndex(AVFilterContext *ctx, int freq, int *range) {
 
 /* absolute value of complex number */
 static double getAbs(FFTComplex cn) {
-    double res;
+    //double res;
 
-    res = pow(cn.re, 2) + pow(cn.im, 2);
-    res = sqrt(res);
-    return res;
+    //res = pow(cn.re, 2) + pow(cn.im, 2);
+    //res = sqrt(res);
+    return hypot(cn.re, cn.im);
 }
 
 /* Getting constellation points */
 static ConstellationPoint *getConstellationPoints(AVFilterContext *ctx, PeakPointsContext *p,
         FFTComplex *tab, int *bins, int bin_size, size_t time) {
-    int freq, index;
-    double mag;
-    int *interval, *maxscores;
+    int freq, index, j, start, end, flag;
+    double mag, *maxscores;
+    int *interval;
     ConstellationPoint *cpt = NULL;
 
     //av_log(ctx, AV_LOG_INFO, "Inside getFingerPrint method\n");
@@ -174,7 +174,7 @@ static ConstellationPoint *getConstellationPoints(AVFilterContext *ctx, PeakPoin
     for (freq = 0; freq < p->windowSize; freq++) {
         // calculate magnitude in decibel
         //av_log(ctx, AV_LOG_INFO, "freq is %d\n", freq);
-        mag = log(getAbs(tab[freq]) + 1);
+        mag = getAbs(tab[freq]) + 1;
         //av_log(ctx, AV_LOG_INFO, "got magnitude\n");
 
         // Find out the interval in which it lies
@@ -184,9 +184,36 @@ static ConstellationPoint *getConstellationPoints(AVFilterContext *ctx, PeakPoin
         // Save the highest magnitude and corresponding frequency
         if (mag > maxscores[index]) {
             maxscores[index] = mag;
-            //fp->keyPoints[index] = freq;
-            cpt[index].frequency = freq;
-            cpt[index].time = time;
+
+            // check for valid constellation points
+            if (freq < 64) {
+                start = 0;
+                end = freq+64;
+            }
+            else if (freq > p->windowSize-64) {
+                end = p->windowSize-1;
+                start = freq-64;
+            }
+            else {
+                start = freq - 64;
+                end = freq + 64;
+            }
+
+            flag = 0;
+
+            for (j = start; j <= end; j++) {
+                if (mag < getAbs(tab[j])) {
+                    cpt[index].frequency = -1;
+                    cpt[index].time = -1;
+                    flag = 1;
+                }
+            }
+
+            // case of valid points
+            if (!flag) {
+                cpt[index].frequency = freq;
+                cpt[index].time = time;
+            }
         }
         //av_log(ctx, AV_LOG_INFO, "saved\n");
     }
@@ -219,7 +246,7 @@ static int getPeakPoints2(AVFilterContext *ctx, PeakPointsContext *ppc) {
     pSize = resSize/chunkSize;
 
     // freqency bins
-    delta = 100;
+    delta = 64;
     val = 0;
     t = 0;
 
@@ -370,7 +397,7 @@ static int getPeakPoints2(AVFilterContext *ctx, PeakPointsContext *ppc) {
 #define OFFSET(x) offsetof(PeakPointsContext, x)
 
 static const AVOption peakpoints2_options[] = {
-    { "wsize",  "set window size", OFFSET(windowSize),  AV_OPT_TYPE_INT,    {.i64=16},    0, INT_MAX},
+    { "wsize",  "set window size", OFFSET(windowSize),  AV_OPT_TYPE_INT,    {.i64=1024},    0, INT_MAX},
     { NULL },
 };
 
@@ -380,7 +407,7 @@ static av_cold int init(AVFilterContext *ctx)
 {
     PeakPointsContext *p = ctx->priv;
 
-    if (p->windowSize < 16 || p->windowSize > SIZECHECK) {
+    if (p->windowSize < 1024 || p->windowSize > SIZECHECK) {
         av_log(ctx, AV_LOG_ERROR, "window size must be in range 16 to %d\n", SIZECHECK);
         return AVERROR(EINVAL);
     }
@@ -420,8 +447,18 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
             */
 
             // print hashes for pair points
+            // check for invalid points
+            if (p->cpoints[i].frequency == -1) {
+                continue;
+            }
+
             for (j = i+1; j < p->size; j++) {
                 // f1:f2:t2-t1:start time
+                // check for invalid points
+                if (p->cpoints[j].frequency == -1) {
+                    continue;
+                }
+
                 av_log(ctx, AV_LOG_INFO, "%d:%d:%zu:%zu\n", p->cpoints[i].frequency,
                 p->cpoints[j].frequency, abs(p->cpoints[j].time - p->cpoints[i].time),
                 p->cpoints[i].time);
