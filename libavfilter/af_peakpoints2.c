@@ -203,6 +203,9 @@ static ConstellationPoint *getConstellationPoints(AVFilterContext *ctx, PeakPoin
         flag = 0;
 
         if (frequencies[index] < 64) {
+            if (frequencies[index] == -1) {
+                continue;
+            }
             start = 0;
             end = frequencies[index] + 64;
         }
