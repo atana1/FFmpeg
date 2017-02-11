@@ -183,7 +183,7 @@ static ConstellationPoint *getConstellationPoints(AVFilterContext *ctx, PeakPoin
     for (freq = 0; freq < p->windowSize; freq++) {
         // calculate magnitude in decibel
         //av_log(ctx, AV_LOG_INFO, "freq is %d\n", freq);
-        mag = getAbs(tab[freq]) + 1;
+        mag = getAbs(tab[freq]);
         //av_log(ctx, AV_LOG_INFO, "got magnitude\n");
 
         // Find out the interval in which it lies
