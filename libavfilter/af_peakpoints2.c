@@ -117,7 +117,7 @@ static ConstellationPoint *getConstellationPoints(AVFilterContext *ctx, PeakPoin
         FFTComplex *tab, int *bins, int bin_size, size_t time) {
     int freq, index, j, start, end, flag;
     double mag, *maxscores;
-    int *interval;
+    int *interval, *frequencies;
     ConstellationPoint *cpt = NULL;
 
     //av_log(ctx, AV_LOG_INFO, "Inside getFingerPrint method\n");
@@ -170,6 +170,15 @@ static ConstellationPoint *getConstellationPoints(AVFilterContext *ctx, PeakPoin
         av_log(ctx, AV_LOG_ERROR, "Can't allocate memmory for maxscore array\n");
     }
 
+    frequencies = av_malloc_array(bin_size, sizeof(*frequencies));
+
+    memset(frequencies, -1, bin_size * sizeof(*frequencies));
+
+    // memory check
+    if (!frequencies) {
+        av_log(ctx, AV_LOG_ERROR, "Can't allocate memory for frequencies array\n");
+    }
+
     //av_log(ctx, AV_LOG_INFO, "Before the loop\n");
     for (freq = 0; freq < p->windowSize; freq++) {
         // calculate magnitude in decibel
@@ -184,43 +193,47 @@ static ConstellationPoint *getConstellationPoints(AVFilterContext *ctx, PeakPoin
         // Save the highest magnitude and corresponding frequency
         if (mag > maxscores[index]) {
             maxscores[index] = mag;
-
-            // check for valid constellation points
-            if (freq < 64) {
-                start = 0;
-                end = freq+64;
-            }
-            else if (freq > p->windowSize-64) {
-                end = p->windowSize-1;
-                start = freq-64;
-            }
-            else {
-                start = freq - 64;
-                end = freq + 64;
-            }
-
-            flag = 0;
-
-            for (j = start; j <= end; j++) {
-                if (mag < getAbs(tab[j])) {
-                    cpt[index].frequency = -1;
-                    cpt[index].time = -1;
-                    flag = 1;
-                }
-            }
-
-            // case of valid points
-            if (!flag) {
-                cpt[index].frequency = freq;
-                cpt[index].time = time;
-            }
+            frequencies[index] = freq;
         }
         //av_log(ctx, AV_LOG_INFO, "saved\n");
+    }
+
+    // check for valid constellation points
+    for (index = 0; index < bin_size; index++) {
+        flag = 0;
+
+        if (index < 64) {
+            start = 0;
+            end = index + 64;
+        }
+        else if (index > p->windowSize-64) {
+            end = p->windowSize -1;
+            start = index - 64;
+        }
+        else {
+            start = index - 64;
+            end = index + 64;
+        }
+
+        for (j = start; j <= end; j++) {
+            if (maxscores[index] < getAbs(tab[j])) {
+                cpt[index].frequency = -1;
+                cpt[index].time = -1;
+                flag = 1;
+            }
+        }
+
+        // case of valid points
+        if (!flag) {
+            cpt[index].frequency = frequencies[index];
+            cpt[index].time = time;
+        }
     }
 
     // free allocated memories.
     av_freep(&interval);
     av_freep(&maxscores);
+    av_freep(&frequencies);
     return cpt;
 }
 
