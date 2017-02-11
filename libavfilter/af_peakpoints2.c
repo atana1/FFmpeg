@@ -202,17 +202,17 @@ static ConstellationPoint *getConstellationPoints(AVFilterContext *ctx, PeakPoin
     for (index = 0; index < bin_size; index++) {
         flag = 0;
 
-        if (index < 64) {
+        if (frequencies[index] < 64) {
             start = 0;
-            end = index + 64;
+            end = frequencies[index] + 64;
         }
-        else if (index > p->windowSize-64) {
+        else if (frequencies[index] > p->windowSize-64) {
             end = p->windowSize -1;
-            start = index - 64;
+            start = frequencies[index] - 64;
         }
         else {
-            start = index - 64;
-            end = index + 64;
+            start = frequencies[index] - 64;
+            end = frequencies[index] + 64;
         }
 
         for (j = start; j <= end; j++) {
