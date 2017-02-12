@@ -218,7 +218,8 @@ static ConstellationPoint *getConstellationPoints(AVFilterContext *ctx, PeakPoin
             end = frequencies[index] + 64;
         }
 
-        count = 1;
+        count = 0;
+
         for (j = start; j <= end; j++) {
             if (maxscores[index] < getAbs(tab[j])) {
                 cpt[index].frequency = -1;
