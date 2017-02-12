@@ -115,7 +115,7 @@ static double getAbs(FFTComplex cn) {
 /* Getting constellation points */
 static ConstellationPoint *getConstellationPoints(AVFilterContext *ctx, PeakPointsContext *p,
         FFTComplex *tab, int *bins, int bin_size, size_t time) {
-    int freq, index, j, start, end, flag;
+    int freq, index, j, start, end, flag, count;
     double mag, *maxscores;
     int *interval, *frequencies;
     ConstellationPoint *cpt = NULL;
@@ -218,11 +218,21 @@ static ConstellationPoint *getConstellationPoints(AVFilterContext *ctx, PeakPoin
             end = frequencies[index] + 64;
         }
 
+        count = 1;
         for (j = start; j <= end; j++) {
             if (maxscores[index] < getAbs(tab[j])) {
-                cpt[index].frequency = -1;
+                if (maxscores[index] < getAbs(tab[j]) * 2) {
+                    count ++;
+                }
+
+                if (count > 3) {
+                    cpt[index].frequency = -1;
+                    cpt[index].time = -1;
+                    flag = 1;
+                }
+                /*cpt[index].frequency = -1;
                 cpt[index].time = -1;
-                flag = 1;
+                flag = 1;*/
             }
         }
 
