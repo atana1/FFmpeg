@@ -221,18 +221,19 @@ static ConstellationPoint *getConstellationPoints(AVFilterContext *ctx, PeakPoin
         count = 1;
         for (j = start; j <= end; j++) {
             if (maxscores[index] < getAbs(tab[j])) {
-                if (maxscores[index] < getAbs(tab[j]) * 2) {
-                    count ++;
-                }
-
-                if (count > 3) {
-                    cpt[index].frequency = -1;
-                    cpt[index].time = -1;
-                    flag = 1;
-                }
-                /*cpt[index].frequency = -1;
+                cpt[index].frequency = -1;
                 cpt[index].time = -1;
-                flag = 1;*/
+                flag = 1;
+            }
+
+            if (maxscores[index] < getAbs(tab[j]) * 2) {
+                count ++;
+            }
+
+            if (count > 3) {
+                cpt[index].frequency = -1;
+                cpt[index].time = -1;
+                flag = 1;
             }
         }
 
