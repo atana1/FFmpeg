@@ -457,7 +457,8 @@ static av_cold int init(AVFilterContext *ctx)
 }
 
 static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
-    int i, j, ret;
+    int i, ret, mark_index, f1, f2, f3, f4;
+    size_t t1, t2, t3, t4;
     ret = getPeakPoints2(ctx, p);
 
     if (ret && p->size) {
@@ -466,6 +467,23 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
             av_log(ctx, AV_LOG_INFO, "######## Finger prints are ########\n");
             p->isOnce = 0;
         }
+
+        // get rid of invalid points
+        mark_index = -1;
+        for (i = 0; i < p->size; i++) {
+            if (mark_index >= 0) {
+                if (p->cpoints[i].frequency != -1) {
+                    p->cpoints[mark_index] = p->cpoints[i];
+                    mark_index = mark_index + 1;
+                }
+            }
+
+            else if (p->cpoints[i].frequency == -1) {
+                mark_index = i;
+            }
+        }
+
+        p->size = mark_index;
 
         for (i = 0; i < p->size; i++) {
             /*for (j = 0; j < p->bin_size; j++) {
@@ -480,7 +498,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                 continue;
             }
 
-            for (j = i+1; j < p->size; j++) {
+            /*for (j = i+1; j < p->size; j++) {
                 // f1:f2:t2-t1:start time
                 // check for invalid points
                 if (p->cpoints[j].frequency == -1) {
@@ -490,7 +508,24 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                 av_log(ctx, AV_LOG_INFO, "%d:%d:%zu:%zu\n", p->cpoints[i].frequency,
                 p->cpoints[j].frequency, abs(p->cpoints[j].time - p->cpoints[i].time),
                 p->cpoints[i].time);
+            }*/
+
+            if (i+3 >= p->size) {
+                break;
             }
+
+            f1 = p->cpoints[i].frequency;
+            t1 = p->cpoints[i].time;
+            f2 = p->cpoints[i+1].frequency;
+            t2 = p->cpoints[i+1].time;
+            f3 = p->cpoints[i+2].frequency;
+            t3 = p->cpoints[i+2].time;
+            f4 = p->cpoints[i+3].frequency;
+            t4 = p->cpoints[i+3].time;
+
+            av_log(ctx, AV_LOG_INFO, "%d:%d:%d:%d:%zu:%zu:%zu\n", f1,
+                    f2, f3, f4, t2-t1, t3-t2, t4-t3);
+
         }
 
         // free peaks and set size to zero
