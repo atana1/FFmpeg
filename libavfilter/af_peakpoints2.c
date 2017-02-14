@@ -468,8 +468,8 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
     int i, j, fp, ret, mark_index, f1, f2, f3, f4, length, buf_size, song_id;
     size_t t1, t2, t3, t4;
     char *filename;
-    uint8_t entry[22];
-    PutByteContext *pb;
+    uint8_t entry[32];
+    PutByteContext pb;
 
     ret = getPeakPoints2(ctx, p);
 
@@ -538,38 +538,39 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                     f2, f3, f4, t2-t1, t3-t2, t4-t3);
 
             // put to file db
-            buf_size = 16+4+2;
+            buf_size = sizeof(entry);
 
-            bytestream2_init_writer(pb, entry, buf_size);
+            bytestream2_init_writer(&pb, entry, buf_size);
             // write data to putbyte context
             for (j = 0; j < 8; j++) {
-                bytestream2_put_le16(pb, p->cpoints[i+j].frequency);
-                if (j != 7) {
+                bytestream2_put_le16(&pb, p->cpoints[i+j].frequency);
+                /*if (j != 7) {
                     bytestream2_put_le16(pb, ',');
-                }
+                }*/
             }
 
-            bytestream2_put_le16(pb, ':');
+            //bytestream2_put_le16(pb, ':');
 
             for (j = 0; j < 8; j++) {
-                bytestream2_put_le16(pb, p->cpoints[i+j].time);
-                if (j != 7) {
+                bytestream2_put_le16(&pb, p->cpoints[i+j].time);
+                /*if (j != 7) {
                     bytestream2_put_le16(pb, ',');
-                }
+                }*/
             }
 
             // just for test song_id = 1
             song_id = 1;
-            bytestream2_put_le16(pb, ':');
-            bytestream2_put_le16(pb, song_id);
-            bytestream2_put_le16(pb, '\n');
+            //bytestream2_put_le16(pb, ':');
+            bytestream2_put_le16(&pb, song_id);
+            //bytestream2_put_le16(pb, '\n');
 
             //filename is same as anchor point
             length = snprintf( NULL, 0, "%d", f1);
-            filename = malloc( length + 1 ); // extra 1 for terminating character
-            snprintf(filename, length + 1, "%d", f1);
+            length = length + snprintf(NULL, 0, "PPDB-%d", f1);
+            filename = malloc(length + 1); //extra 1 for terminating character
+            snprintf(filename, length + 1, "PPDB-%d", f1);
 
-            fp = avpriv_open(filename, O_RDWR);
+            fp = avpriv_open(filename, O_RDWR|O_CREAT|O_APPEND, 0666);
 
             //check
             if (fp == -1) {
