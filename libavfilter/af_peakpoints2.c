@@ -20,11 +20,19 @@
 
 #include "libavcodec/avcodec.h"
 #include "libavcodec/avfft.h"
+#include "libavcodec/bytestream.h"
 #include "libavformat/avformat.h"
 #include "libswscale/swscale.h"
 #include "avfilter.h"
 #include "audio.h"
 #include "libavutil/opt.h"
+#include "libavutil/internal.h"
+
+#include <fcntl.h>
+
+#if HAVE_UNISTD_H
+#include <unistd.h>
+#endif
 
 #define SIZECHECK 4096*5
 /* Upper and Lower Limit of sound frequency in audible range */
@@ -231,7 +239,7 @@ static ConstellationPoint *getConstellationPoints(AVFilterContext *ctx, PeakPoin
                 count ++;
             }
 
-            if (count > 3) {
+            if (count > 30) {
                 cpt[index].frequency = -1;
                 cpt[index].time = -1;
                 flag = 1;
@@ -457,8 +465,12 @@ static av_cold int init(AVFilterContext *ctx)
 }
 
 static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
-    int i, ret, mark_index, f1, f2, f3, f4;
+    int i, j, fp, ret, mark_index, f1, f2, f3, f4, length, buf_size, song_id;
     size_t t1, t2, t3, t4;
+    char *filename;
+    uint8_t entry[22];
+    PutByteContext *pb;
+
     ret = getPeakPoints2(ctx, p);
 
     if (ret && p->size) {
@@ -469,13 +481,11 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
         }
 
         // get rid of invalid points
-        mark_index = -1;
+        mark_index = 0;
         for (i = 0; i < p->size; i++) {
-            if (mark_index >= 0) {
-                if (p->cpoints[i].frequency != -1) {
+            if (p->cpoints[i].frequency != -1) {
                     p->cpoints[mark_index] = p->cpoints[i];
                     mark_index = mark_index + 1;
-                }
             }
 
             else if (p->cpoints[i].frequency == -1) {
@@ -510,7 +520,8 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                 p->cpoints[i].time);
             }*/
 
-            if (i+3 >= p->size) {
+            // considering 8 points now
+            if (i+7 >= p->size) {
                 break;
             }
 
@@ -526,6 +537,49 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
             av_log(ctx, AV_LOG_INFO, "%d:%d:%d:%d:%zu:%zu:%zu\n", f1,
                     f2, f3, f4, t2-t1, t3-t2, t4-t3);
 
+            // put to file db
+            buf_size = 16+4+2;
+
+            bytestream2_init_writer(pb, entry, buf_size);
+            // write data to putbyte context
+            for (j = 0; j < 8; j++) {
+                bytestream2_put_le16(pb, p->cpoints[i+j].frequency);
+                if (j != 7) {
+                    bytestream2_put_le16(pb, ',');
+                }
+            }
+
+            bytestream2_put_le16(pb, ':');
+
+            for (j = 0; j < 8; j++) {
+                bytestream2_put_le16(pb, p->cpoints[i+j].time);
+                if (j != 7) {
+                    bytestream2_put_le16(pb, ',');
+                }
+            }
+
+            // just for test song_id = 1
+            song_id = 1;
+            bytestream2_put_le16(pb, ':');
+            bytestream2_put_le16(pb, song_id);
+            bytestream2_put_le16(pb, '\n');
+
+            //filename is same as anchor point
+            length = snprintf( NULL, 0, "%d", f1);
+            filename = malloc( length + 1 ); // extra 1 for terminating character
+            snprintf(filename, length + 1, "%d", f1);
+
+            fp = avpriv_open(filename, O_RDWR);
+
+            //check
+            if (fp == -1) {
+                av_log(ctx, AV_LOG_ERROR, "Cann't open file %s for writing\n", filename);
+            }
+
+            write(fp, entry, buf_size);
+
+            close(fp);
+            av_freep(&filename);
         }
 
         // free peaks and set size to zero
