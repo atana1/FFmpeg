@@ -481,7 +481,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
         }
 
         // get rid of invalid points
-        mark_index = 0;
+        /*mark_index = 0;
         for (i = 0; i < p->size; i++) {
             if (p->cpoints[i].frequency != -1) {
                     p->cpoints[mark_index] = p->cpoints[i];
@@ -493,7 +493,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
             }
         }
 
-        p->size = mark_index;
+        p->size = mark_index;*/
 
         for (i = 0; i < p->size; i++) {
             /*for (j = 0; j < p->bin_size; j++) {
