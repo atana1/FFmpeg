@@ -624,9 +624,9 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
 
                     // 17 is total number of items stored in one hash
                     for (count = 0; count < 8; count++) {
-                        val = bytestream2_get_le16(&gb);
+                        val = (int16_t)bytestream2_get_le16(&gb);
                         // match
-                        if (!(match_time) && p->cpoints[i+count].frequency != val) {
+                        /*if (!(match_time) && p->cpoints[i+count].frequency != val) {
                             // this hash doesn't match try next hash
                             break;
                         }
@@ -651,12 +651,33 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                         else if (match_count == 16) {
                             // it's a match
                             found = 1;
-                            av_log(ctx, AV_LOG_INFO, "match found.\n");
+                            av_log(ctx, AV_LOG_INFO, "match found. ");
+                        }*/
+                        if ((val == -1) || (p->cpoints[i+count].frequency == -1)) {
+                            continue;
+                        }
+
+                        if (p->cpoints[i+count].frequency != val) {
+                            // this hash no a match, try next hash
+                            break;
+                        }
+                        else {
+                            match_count = match_count + 1;
+                        }
+
+                        if ((match_count > 0) && (count == 7)) {
+                            //match found
+                            av_log(ctx, AV_LOG_INFO, "match found\n");
+                            found = 1;
                         }
                     }
 
                     if (found) {
-                        av_log(ctx, AV_LOG_INFO, "Song id is %d", bytestream2_get_le16(&gb));
+                        for (count = 0; count < 8; count++) {
+                            val = (int16_t)bytestream2_get_le16(&gb);
+                        }
+
+                        av_log(ctx, AV_LOG_INFO, "Song id is %d\n", (int16_t)bytestream2_get_le16(&gb));
                     }
 
                 }
