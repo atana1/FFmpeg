@@ -471,12 +471,12 @@ static av_cold int init(AVFilterContext *ctx)
 }
 
 static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
-    int i, j, fp, ret, mark_index, f1, f2, f3, f4, length, buf_size, song_id,
-        val, count, ret;
+    int i, j, fp, ret, f1, f2, f3, f4, length, buf_size, song_id,
+        val, count, retval, match_count, match_time;
     size_t t1, t2, t3, t4;
     char *filename;
-    uint8_t entry[32];
-    uint8_t buff[32];
+    uint8_t entry[34];
+    uint8_t buff[34];
     PutByteContext pb;
     GetByteContext gb;
 
@@ -596,31 +596,64 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
             // lookup
             else if (p->mode) {
                 // open corrosponding file and read the content in array
-                fp = avpriv_open(filename, O_RDONLY, S_IREAD);
+                fp = avpriv_open(filename, O_RDONLY, 0444);
 
                 // file not found
                 if (fp == -1) {
                     av_log(ctx, AV_LOG_ERROR, "No index file %s. Try storing it as index setting mode as 0\n", filename);
                 }
 
-                ret = read(fp, buff, buf_size); // is size to be read buf_size? should be total size of file content.
-
-                if (ret <= 0) {
-                    av_log(ctx, AV_LOG_ERROR, "No content read\n from file %s", filename);
-                }
-
-                bytestream2_init_(&gb, buff, buf_size);
-
                 count = 0;
-                // 17 is total number of items stored in one hash
-                while (count < 17) {
-                    val = bytestream2_get_le16(&gb);
-                    // match
-                    if (p->cpoints[count].frequecy != val) {
-                        // match with another hash in same file
+                match_count = 0;
+                match_time = 0;
+                while (1) {
+                    retval = read(fp, buff, 2); // is size to be read buf_size? should be total size of file content.
+
+                    if (retval < 0) {
+                        av_log(ctx, AV_LOG_ERROR, "No content read\n from file %s", filename);
                     }
 
+                    if (retval == 0) {
+                        av_log(ctx, AV_LOG_INFO, "Reached EOF\n");
+                        break;
+                    }
+
+                    bytestream2_init(&gb, buff, 2);
+
+                    // 17 is total number of items stored in one hash
+                    val = bytestream2_get_le16(&gb);
+                    // match
+                    if (!(match_time) && p->cpoints[count].frequency == val) {
+                        match_count = match_count + 1;
+                    }
+                    else if (!(match_time) && p->cpoints[count].frequency != val) {
+                        match_count = 0;
+                    }
+
+                    if (match_time) {
+                        if (p->cpoints[count].time == val) {
+                            match_count = match_count + 1;
+                        }
+                        else {
+                            match_count = 0;
+                            match_time = 0;
+                        }
+                    }
+
+                    if (match_count == 8) {
+                        // all frequency matched; try matching timings
+                        match_time = 1;
+                        //av_log(ctx, "match found. Song id is \n");
+                    }
+
+                    else if (match_count == 16) {
+                        // it's a match
+                        av_log(ctx, AV_LOG_INFO, "match found. song id is \n");
+                    }
                 }
+
+                close(fp);
+                av_freep(&filename);
             }
         }
 
