@@ -218,7 +218,7 @@ static ConstellationPoint *getConstellationPoints(AVFilterContext *ctx, PeakPoin
             start = 0;
             end = frequencies[index] + 64;
         }
-        else if (frequencies[index] > p->windowSize-64) {
+        else if (frequencies[index] >= p->windowSize-64) {
             end = p->windowSize -1;
             start = frequencies[index] - 64;
         }
@@ -472,7 +472,7 @@ static av_cold int init(AVFilterContext *ctx)
 
 static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
     int i, j, fp, ret, f1, f2, f3, f4, length, buf_size, song_id,
-        val, count, retval, match_count, match_time;
+        val, count, retval, match_count, match_time, found;
     size_t t1, t2, t3, t4;
     char *filename;
     uint8_t entry[34];
@@ -603,11 +603,13 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                     av_log(ctx, AV_LOG_ERROR, "No index file %s. Try storing it as index setting mode as 0\n", filename);
                 }
 
-                count = 0;
-                match_count = 0;
-                match_time = 0;
                 while (1) {
-                    retval = read(fp, buff, 2); // is size to be read buf_size? should be total size of file content.
+                    count = 0;
+                    found = 0;
+                    match_count = 0;
+                    match_time = 0;
+
+                    retval = read(fp, buff, sizeof(buff)); // is size to be read buf_size? should be total size of file content.
 
                     if (retval < 0) {
                         av_log(ctx, AV_LOG_ERROR, "No content read\n from file %s", filename);
@@ -618,38 +620,45 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                         break;
                     }
 
-                    bytestream2_init(&gb, buff, 2);
+                    bytestream2_init(&gb, buff, sizeof(buff));
 
                     // 17 is total number of items stored in one hash
-                    val = bytestream2_get_le16(&gb);
-                    // match
-                    if (!(match_time) && p->cpoints[count].frequency == val) {
-                        match_count = match_count + 1;
-                    }
-                    else if (!(match_time) && p->cpoints[count].frequency != val) {
-                        match_count = 0;
-                    }
-
-                    if (match_time) {
-                        if (p->cpoints[count].time == val) {
+                    for (count = 0; count < 8; count++) {
+                        val = bytestream2_get_le16(&gb);
+                        // match
+                        if (!(match_time) && p->cpoints[i+count].frequency != val) {
+                            // this hash doesn't match try next hash
+                            break;
+                        }
+                        else if (!(match_time) && p->cpoints[i+count].frequency == val){
                             match_count = match_count + 1;
                         }
-                        else {
-                            match_count = 0;
-                            match_time = 0;
+
+                        if (match_time) {
+                            if (p->cpoints[i+count].time != val) {
+                                break;
+                            }
+                            else {
+                                match_count = match_count + 1;
+                            }
+
+                        }
+                        if (match_count == 8) {
+                            // all frequencies matched now try matching times
+                            match_time = 1;
+                            count = 0;
+                        }
+                        else if (match_count == 16) {
+                            // it's a match
+                            found = 1;
+                            av_log(ctx, AV_LOG_INFO, "match found.\n");
                         }
                     }
 
-                    if (match_count == 8) {
-                        // all frequency matched; try matching timings
-                        match_time = 1;
-                        //av_log(ctx, "match found. Song id is \n");
+                    if (found) {
+                        av_log(ctx, AV_LOG_INFO, "Song id is %d", bytestream2_get_le16(&gb));
                     }
 
-                    else if (match_count == 16) {
-                        // it's a match
-                        av_log(ctx, AV_LOG_INFO, "match found. song id is \n");
-                    }
                 }
 
                 close(fp);
