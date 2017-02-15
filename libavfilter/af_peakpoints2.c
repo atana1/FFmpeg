@@ -471,11 +471,14 @@ static av_cold int init(AVFilterContext *ctx)
 }
 
 static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
-    int i, j, fp, ret, mark_index, f1, f2, f3, f4, length, buf_size, song_id;
+    int i, j, fp, ret, mark_index, f1, f2, f3, f4, length, buf_size, song_id,
+        val, count, ret;
     size_t t1, t2, t3, t4;
     char *filename;
     uint8_t entry[32];
+    uint8_t buff[32];
     PutByteContext pb;
+    GetByteContext gb;
 
     ret = getPeakPoints2(ctx, p);
 
@@ -543,6 +546,12 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
             av_log(ctx, AV_LOG_INFO, "%d:%d:%d:%d:%zu:%zu:%zu\n", f1,
                     f2, f3, f4, t2-t1, t3-t2, t4-t3);
 
+	        //filename is same as anchor point
+            length = snprintf( NULL, 0, "%d", f1);
+            length = length + snprintf(NULL, 0, "PPDB-%d", f1);
+            filename = malloc(length + 1); //extra 1 for terminating character
+            snprintf(filename, length + 1, "PPDB-%d", f1);
+
             if (!p->mode) {
                 // put to file db
                 buf_size = sizeof(entry);
@@ -571,12 +580,6 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                 bytestream2_put_le16(&pb, song_id);
                 //bytestream2_put_le16(pb, '\n');
 
-                //filename is same as anchor point
-                length = snprintf( NULL, 0, "%d", f1);
-                length = length + snprintf(NULL, 0, "PPDB-%d", f1);
-                filename = malloc(length + 1); //extra 1 for terminating character
-                snprintf(filename, length + 1, "PPDB-%d", f1);
-
                 fp = avpriv_open(filename, O_RDWR|O_CREAT|O_APPEND, 0666);
 
                 //check
@@ -588,6 +591,36 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
 
                 close(fp);
                 av_freep(&filename);
+            }
+
+            // lookup
+            else if (p->mode) {
+                // open corrosponding file and read the content in array
+                fp = avpriv_open(filename, O_RDONLY, S_IREAD);
+
+                // file not found
+                if (fp == -1) {
+                    av_log(ctx, AV_LOG_ERROR, "No index file %s. Try storing it as index setting mode as 0\n", filename);
+                }
+
+                ret = read(fp, buff, buf_size); // is size to be read buf_size? should be total size of file content.
+
+                if (ret <= 0) {
+                    av_log(ctx, AV_LOG_ERROR, "No content read\n from file %s", filename);
+                }
+
+                bytestream2_init_(&gb, buff, buf_size);
+
+                count = 0;
+                // 17 is total number of items stored in one hash
+                while (count < 17) {
+                    val = bytestream2_get_le16(&gb);
+                    // match
+                    if (p->cpoints[count].frequecy != val) {
+                        // match with another hash in same file
+                    }
+
+                }
             }
         }
 
