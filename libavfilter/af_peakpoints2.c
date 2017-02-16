@@ -621,8 +621,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                 // file not found
                 if (fp == -1) {
                     av_log(ctx, AV_LOG_ERROR, "No index file %s. Try storing it as index setting mode as 0\n", filename);
-                    av_freep(&filename);
-                    break;
+                    //av_freep(&filename);
                 }
 
                 while (1) {
@@ -633,8 +632,8 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                     retval = read(fp, buff, sizeof(buff)); // is size to be read buf_size? should be total size of file content.
 
                     if (retval < 0) {
-                        av_log(ctx, AV_LOG_INFO, "No content read from file %s", filename);
-                        av_freep(&filename);
+                        av_log(ctx, AV_LOG_INFO, "No content read from file %s\n", filename);
+                        //av_freep(&filename);
                         break;
                     }
 
