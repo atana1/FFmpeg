@@ -724,6 +724,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
 static int query_formats(AVFilterContext *ctx)
 {
     int ret, sample_rates[] = { 11025, -1 };
+    AVFilterChannelLayouts *layouts;
 
     static const enum AVSampleFormat sample_fmts[] = {
         AV_SAMPLE_FMT_DBL,
@@ -738,6 +739,27 @@ static int query_formats(AVFilterContext *ctx)
         return AVERROR(ENOMEM);
 
     ret = ff_set_common_samplerates(ctx, formats);
+
+    if (ret < 0)
+        return ret;
+
+    ret = ff_channel_layouts_ref(layouts, &ctx->inputs[0]->out_channel_layouts);
+
+    if (ret)
+        return ret;
+
+    ret = ff_add_channel_layout(&layouts, AV_CH_LAYOUT_MONO);
+
+    if (ret)
+        return ret;
+
+    if (!layouts)
+        return AVERROR(ENOMEM);
+
+    ret = ff_set_common_channel_layouts(ctx, layouts);
+
+    if (ret < 0)
+        return ret;
 
     if (!(formats = ff_make_format_list(sample_fmts)))
         return AVERROR(ENOMEM);
