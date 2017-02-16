@@ -56,6 +56,7 @@ typedef struct {
     int mode;
     int nsamples;
     int index;
+    int song_id;
     size_t time;
     int isOnce;
     int buffFlag;
@@ -436,6 +437,7 @@ static int getPeakPoints2(AVFilterContext *ctx, PeakPointsContext *ppc) {
 static const AVOption peakpoints2_options[] = {
     { "wsize",  "set window size", OFFSET(windowSize),  AV_OPT_TYPE_INT,    {.i64=1024},    0, INT_MAX},
     { "mode", "do lookup for the song or store the song", OFFSET(mode), AV_OPT_TYPE_INT, {.i64=1}, 0, 1},
+    { "song_id", "song identifier while storing a song", OFFSET(song_id), AV_OPT_TYPE_INT, {.i64=-1}, -1, INT_MAX},
     { NULL },
 };
 
@@ -452,6 +454,11 @@ static av_cold int init(AVFilterContext *ctx)
 
     if ((p->mode != 0) && (p->mode != 1)) {
         av_log(ctx, AV_LOG_ERROR, "mode is either 0 or 1; 0 to store, 1 to lookup\n");
+    }
+
+    // case of creating indexes
+    if (p->mode == 0 && p->song_id == -1) {
+        av_log(ctx, AV_LOG_ERROR, "Index creation requires a associated song_id\n");
     }
 
     av_log(ctx, AV_LOG_INFO, "window size is %d\n", p->windowSize);
@@ -472,7 +479,7 @@ static av_cold int init(AVFilterContext *ctx)
 
 static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
     int i, j, fp, ret, f1, f2, f3, f4, length, buf_size, song_id,
-        val, count, retval, match_count, match_time, found;
+        val, count, retval, match_count, found, npeaks;
     size_t t1, t2, t3, t4;
     char *filename;
     uint8_t entry[34];
@@ -558,6 +565,19 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
 
                 bytestream2_init_writer(&pb, entry, buf_size);
                 // write data to putbyte context
+                // skip entires that have less than 3 freq peaks
+                npeaks = 0;
+                for (j = 0; j < 8; j++) {
+                    if (p->cpoints[i+j].frequency != -1) {
+                        npeaks = npeaks + 1;
+                    }
+                }
+
+                // discard entries with less than 3 peak points
+                if (npeaks < 3) {
+                    continue;
+                }
+
                 for (j = 0; j < 8; j++) {
                     bytestream2_put_le16(&pb, p->cpoints[i+j].frequency);
                     /*if (j != 7) {
@@ -575,7 +595,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                 }
 
                 // just for test song_id = 1
-                song_id = 1;
+                song_id = p->song_id;
                 //bytestream2_put_le16(pb, ':');
                 bytestream2_put_le16(&pb, song_id);
                 //bytestream2_put_le16(pb, '\n');
@@ -596,23 +616,26 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
             // lookup
             else if (p->mode) {
                 // open corrosponding file and read the content in array
-                fp = avpriv_open(filename, O_RDONLY, 0444);
+                fp = avpriv_open(filename, O_RDONLY);
 
                 // file not found
                 if (fp == -1) {
                     av_log(ctx, AV_LOG_ERROR, "No index file %s. Try storing it as index setting mode as 0\n", filename);
+                    av_freep(&filename);
+                    break;
                 }
 
                 while (1) {
                     count = 0;
                     found = 0;
                     match_count = 0;
-                    match_time = 0;
 
                     retval = read(fp, buff, sizeof(buff)); // is size to be read buf_size? should be total size of file content.
 
                     if (retval < 0) {
-                        av_log(ctx, AV_LOG_ERROR, "No content read\n from file %s", filename);
+                        av_log(ctx, AV_LOG_INFO, "No content read from file %s", filename);
+                        av_freep(&filename);
+                        break;
                     }
 
                     if (retval == 0) {
