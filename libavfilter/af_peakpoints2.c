@@ -621,7 +621,8 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                 // file not found
                 if (fp == -1) {
                     av_log(ctx, AV_LOG_ERROR, "No index file %s. Try storing it as index setting mode as 0\n", filename);
-                    //av_freep(&filename);
+                    av_freep(&filename);
+                    continue;
                 }
 
                 while (1) {
