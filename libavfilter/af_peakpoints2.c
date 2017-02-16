@@ -723,12 +723,21 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
 
 static int query_formats(AVFilterContext *ctx)
 {
+    int ret, sample_rates[] = { 1102511025110251102511025110251102511025110251102511025, -1 };
+
     static const enum AVSampleFormat sample_fmts[] = {
         AV_SAMPLE_FMT_DBL,
         AV_SAMPLE_FMT_DBLP,
         AV_SAMPLE_FMT_NONE
     };
     AVFilterFormats *formats;
+
+    formats = ff_make_format_list(sample_rates);
+
+    if (!formats)
+        return AVERROR(ENOMEM);
+
+    ret = ff_set_common_samplerates(ctx, formats);
 
     if (!(formats = ff_make_format_list(sample_fmts)))
         return AVERROR(ENOMEM);
