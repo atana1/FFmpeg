@@ -48,6 +48,11 @@ typedef struct {
     int frequency;
 } ConstellationPoint;
 
+/* structure to store match information */
+typedef struct {
+    int matchtime;
+    int songid;
+} MatchInfo;
 
 /* Structure to contain peak points context */
 typedef struct {
@@ -68,6 +73,8 @@ typedef struct {
     //char *inputFile;
 } PeakPointsContext;
 
+
+int cmpfunc(const MatchInfo *, const MatchInfo *);
 
 /* returns maximum value from an array conditioned on start and end index */
 /*static double getMax(double *res_arr, int startIndex, int endIndex) {
@@ -477,15 +484,22 @@ static av_cold int init(AVFilterContext *ctx)
     return 0;
 }
 
+int cmpfunc(const MatchInfo * a, const MatchInfo * b) {
+    return (a->matchtime - b->matchtime);
+}
+
 static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
-    int i, j, fp, ret, f1, f2, f3, f4, length, buf_size, song_id,
-        val, count, retval, match_count, found, npeaks;
+    int i, j, k, fp, ret, f1, f2, f3, f4, length, buf_size, song_id,
+        val, count, retval, match_count, found, npeaks, songid, tstart;
+    unsigned int mi_size;
     size_t t1, t2, t3, t4;
     char *filename;
     uint8_t entry[34];
     uint8_t buff[34];
     PutByteContext pb;
     GetByteContext gb;
+    MatchInfo *mi;
+    mi = NULL;
 
     ret = getPeakPoints2(ctx, p);
 
@@ -511,6 +525,16 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
 
         p->size = mark_index;*/
 
+        /* allocate memory for MatchInfo array*/
+        mi_size = sizeof(*mi);
+        mi = av_fast_realloc(mi, &mi_size, 1000);
+
+        // check;
+        if (!mi_size || !mi) {
+            av_log(ctx, AV_LOG_ERROR, "MatchInfo array not reallocated\n");
+        }
+
+        k = 0;
         for (i = 0; i < p->size; i++) {
             /*for (j = 0; j < p->bin_size; j++) {
                 av_log(ctx, AV_LOG_INFO, "%d ", p->fprints[i].keyPoints[j]);
@@ -696,11 +720,29 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                     }
 
                     if (found) {
+                        // skipping time values
                         for (count = 0; count < 8; count++) {
                             val = (int16_t)bytestream2_get_le16(&gb);
+
+                            if (count == 0) {
+                                tstart = val;
+                            }
                         }
 
-                        av_log(ctx, AV_LOG_INFO, "Song id is %d\n", (int16_t)bytestream2_get_le16(&gb));
+                        songid = (int16_t)bytestream2_get_le16(&gb);
+                        av_log(ctx, AV_LOG_INFO, "Song id is %d\n", songid);
+
+                        // store info in MatchInfo array
+                        mi[k].matchtime = p->cpoints[i].time - tstart;
+                        mi[k].songid = songid;
+                        k = k + 1;
+
+                        mi = av_fast_realloc(mi, &mi_size, 1000);
+
+                        //check
+                        if (!mi_size || !mi) {
+                            av_log(ctx, AV_LOG_ERROR, "MatchInfo array not reallocated\n");
+                        }
                     }
 
                 }
@@ -709,6 +751,9 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                 av_freep(&filename);
             }
         }
+
+        // sort the matchinfo array
+        qsort(mi, k, sizeof(*mi), cmpfunc);
 
         // free peaks and set size to zero
         //av_freep(&p->peaks);
