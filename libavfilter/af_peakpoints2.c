@@ -528,7 +528,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
         p->size = mark_index;*/
 
         /* allocate memory for MatchInfo array*/
-        p->mi = av_fast_realloc(p->mi, &p->mi_size, 1000);
+        //p->mi = av_fast_realloc(p->mi, &p->mi_size, 1000);
 
         // check;
         if (!p->mi_size || !p->mi) {
@@ -732,17 +732,16 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                         songid = (int16_t)bytestream2_get_le16(&gb);
                         av_log(ctx, AV_LOG_INFO, "Song id is %d\n", songid);
 
-                        // store info in MatchInfo array
-                        p->mi[p->mi_index].matchtime = p->cpoints[i].time - tstart;
-                        p->mi[p->mi_index].songid = songid;
-                        p->mi_index = p->mi_index + 1;
-
                         p->mi = av_fast_realloc(p->mi, &p->mi_size, sizeof(MatchInfo)*(p->mi_index+1));
 
                         //check
                         if (!p->mi_size || !p->mi) {
                             av_log(ctx, AV_LOG_ERROR, "MatchInfo array not reallocated\n");
                         }
+                        // store info in MatchInfo array
+                        p->mi[p->mi_index].matchtime = p->cpoints[i].time - tstart;
+                        p->mi[p->mi_index].songid = songid;
+                        p->mi_index = p->mi_index + 1;
                     }
 
                 }
@@ -837,7 +836,7 @@ static av_cold void uninit(AVFilterContext *ctx)
         ppointsStats(ctx, p);
     }
 
-    // sort matchinfo array
+    // sort matchinfo array based on timediff
     qsort(p->mi, p->mi_index, sizeof(MatchInfo), cmpfunc);
 
     // free allocated memories
