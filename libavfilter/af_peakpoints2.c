@@ -490,7 +490,16 @@ static av_cold int init(AVFilterContext *ctx)
 }
 
 int cmpfunc(const MatchInfo * a, const MatchInfo * b) {
-    return (a->matchtime - b->matchtime);
+    int diff;
+
+    diff = a->matchtime - b->matchtime;
+
+    if (!diff) {
+        return (a->songid - b->songid);
+    }
+    else {
+        return diff;
+    }
 }
 
 static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
