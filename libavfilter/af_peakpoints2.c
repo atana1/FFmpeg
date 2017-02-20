@@ -67,6 +67,9 @@ typedef struct {
     int buffFlag;
     int bin_size;
     ConstellationPoint *cpoints;
+    MatchInfo *mi;
+    int mi_size;
+    int mi_index;
     //double *peaks;
     int size; // number of peaks
     int windowSize;
@@ -474,6 +477,8 @@ static av_cold int init(AVFilterContext *ctx)
     p->time = 0;
     p->size = 0;
     p->isOnce = 1;
+    p->mi_index = 0;
+    p->mi = NULL;
     p->data = av_malloc_array(SIZECHECK, sizeof(double));
 
     if (!p->data) {
@@ -489,17 +494,14 @@ int cmpfunc(const MatchInfo * a, const MatchInfo * b) {
 }
 
 static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
-    int i, j, k, fp, ret, f1, f2, f3, f4, length, buf_size, song_id,
+    int i, j, fp, ret, f1, f2, f3, f4, length, buf_size, song_id,
         val, count, retval, match_count, found, npeaks, songid, tstart;
-    unsigned int mi_size;
     size_t t1, t2, t3, t4;
     char *filename;
     uint8_t entry[34];
     uint8_t buff[34];
     PutByteContext pb;
     GetByteContext gb;
-    MatchInfo *mi;
-    mi = NULL;
 
     ret = getPeakPoints2(ctx, p);
 
@@ -526,15 +528,13 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
         p->size = mark_index;*/
 
         /* allocate memory for MatchInfo array*/
-        mi_size = sizeof(*mi);
-        mi = av_fast_realloc(mi, &mi_size, 1000);
+        p->mi = av_fast_realloc(p->mi, &p->mi_size, 1000);
 
         // check;
-        if (!mi_size || !mi) {
+        if (!p->mi_size || !p->mi) {
             av_log(ctx, AV_LOG_ERROR, "MatchInfo array not reallocated\n");
         }
 
-        k = 0;
         for (i = 0; i < p->size; i++) {
             /*for (j = 0; j < p->bin_size; j++) {
                 av_log(ctx, AV_LOG_INFO, "%d ", p->fprints[i].keyPoints[j]);
@@ -733,14 +733,14 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                         av_log(ctx, AV_LOG_INFO, "Song id is %d\n", songid);
 
                         // store info in MatchInfo array
-                        mi[k].matchtime = p->cpoints[i].time - tstart;
-                        mi[k].songid = songid;
-                        k = k + 1;
+                        p->mi[p->mi_index].matchtime = p->cpoints[i].time - tstart;
+                        p->mi[p->mi_index].songid = songid;
+                        p->mi_index = p->mi_index + 1;
 
-                        mi = av_fast_realloc(mi, &mi_size, 1000);
+                        p->mi = av_fast_realloc(p->mi, &p->mi_size, sizeof(MatchInfo)*(p->mi_index+1));
 
                         //check
-                        if (!mi_size || !mi) {
+                        if (!p->mi_size || !p->mi) {
                             av_log(ctx, AV_LOG_ERROR, "MatchInfo array not reallocated\n");
                         }
                     }
@@ -751,9 +751,6 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                 av_freep(&filename);
             }
         }
-
-        // sort the matchinfo array
-        qsort(mi, k, sizeof(*mi), cmpfunc);
 
         // free peaks and set size to zero
         //av_freep(&p->peaks);
@@ -839,6 +836,9 @@ static av_cold void uninit(AVFilterContext *ctx)
     if (p->buffFlag) {
         ppointsStats(ctx, p);
     }
+
+    // sort matchinfo array
+    qsort(p->mi, p->mi_index, sizeof(MatchInfo), cmpfunc);
 
     // free allocated memories
     av_freep(&p->data);
