@@ -666,13 +666,13 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                     retval = read(fp, buff, sizeof(buff)); // is size to be read buf_size? should be total size of file content.
 
                     if (retval < 0) {
-                        av_log(ctx, AV_LOG_INFO, "No content read from file %s\n", filename);
+                        av_log(ctx, AV_LOG_ERROR, "No content read from file %s\n", filename);
                         //av_freep(&filename);
                         break;
                     }
 
                     if (retval == 0) {
-                        av_log(ctx, AV_LOG_INFO, "Reached EOF\n");
+                        //av_log(ctx, AV_LOG_INFO, "Reached EOF\n");
                         break;
                     }
 
@@ -723,7 +723,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
 
                         if ((match_count > 0) && (count == 7)) {
                             //match found
-                            av_log(ctx, AV_LOG_INFO, "match found\n");
+                            //av_log(ctx, AV_LOG_INFO, "match found\n");
                             found = 1;
                         }
                     }
@@ -739,7 +739,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                         }
 
                         songid = (int16_t)bytestream2_get_le16(&gb);
-                        av_log(ctx, AV_LOG_INFO, "Song id is %d\n", songid);
+                        //av_log(ctx, AV_LOG_INFO, "Song id is %d\n", songid);
 
                         p->mi = av_fast_realloc(p->mi, &p->mi_size, sizeof(MatchInfo)*(p->mi_index+1));
 
@@ -839,6 +839,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *samples)
 static av_cold void uninit(AVFilterContext *ctx)
 {
     int i, curr_max, count, prev_songid, curr_songid, match_songid;
+    int prev_matchtime, curr_matchtime;
     PeakPointsContext *p = ctx->priv;
 
     // if audio data in buffer get peak points
@@ -846,46 +847,58 @@ static av_cold void uninit(AVFilterContext *ctx)
         ppointsStats(ctx, p);
     }
 
-    // sort matchinfo array based on timediff
-    qsort(p->mi, p->mi_index, sizeof(MatchInfo), cmpfunc);
+    // in lookup mode and any match found
+    if (p->mode && p->mi_index) {
+        // sort matchinfo array based on timediff
+        qsort(p->mi, p->mi_index, sizeof(MatchInfo), cmpfunc);
 
-    // find longest consecutive run of identical songid
-    count = 0;
-    curr_max = 0;
+        // find longest consecutive run of identical songid
+        count = 0;
+        curr_max = 0;
 
-    if (p->mi) {
-        av_log(ctx, AV_LOG_INFO, "mi has content\n");
-    }
-    else { av_log(ctx, AV_LOG_INFO, "mi is null\n");}
-    prev_songid = p->mi[0].songid;
+        /*if (p->mi) {
+            av_log(ctx, AV_LOG_INFO, "mi has content\n");
+        }
+        else { av_log(ctx, AV_LOG_INFO, "mi is null\n");}*/
 
-    for (i = 0; i < p->mi_index; i++) {
-        curr_songid = p->mi[i].songid;
-        if (prev_songid == curr_songid) {
-            count = count + 1;
-            if (i == p->mi_index-1) {
+        prev_songid = p->mi[0].songid;
+        prev_matchtime = p->mi[0].matchtime;
+
+        for (i = 0; i < p->mi_index; i++) {
+            curr_songid = p->mi[i].songid;
+            curr_matchtime = p->mi[i].matchtime;
+
+            if ((prev_songid == curr_songid) && (prev_matchtime == curr_matchtime)) {
+                count = count + 1;
+                if (i == p->mi_index-1) {
+                    if (count > curr_max) {
+                        match_songid = prev_songid;
+                        curr_max = count;
+                    }
+                }
+            }
+            else {
                 if (count > curr_max) {
                     match_songid = prev_songid;
                     curr_max = count;
                 }
+                count = 1;
             }
-        }
-        else {
-            if (count > curr_max) {
-                match_songid = prev_songid;
-                curr_max = count;
-            }
-            count = 1;
+
+            prev_songid = curr_songid;
+            prev_matchtime = curr_matchtime;
         }
 
-        prev_songid = curr_songid;
+        // print match songid
+        av_log(ctx, AV_LOG_INFO, "Matched Song ID is %d\n", match_songid);
+
+        // free
+        av_freep(&p->mi);
     }
-
-    // print match songid
-    av_log(ctx, AV_LOG_INFO, "Matched Song ID is %d\n", match_songid);
-
+    else if(p->mode && (!p->mi_index)) {
+        av_log(ctx, AV_LOG_INFO, "No match found\n");
+    }
     // free allocated memories
-    av_freep(&p->mi);
     av_freep(&p->data);
     //av_freep(&p->peaks);
     av_freep(&p->cpoints);
