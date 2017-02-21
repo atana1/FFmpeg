@@ -838,6 +838,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *samples)
 
 static av_cold void uninit(AVFilterContext *ctx)
 {
+    int i, curr_max, count, prev_songid, curr_songid, match_songid;
     PeakPointsContext *p = ctx->priv;
 
     // if audio data in buffer get peak points
@@ -848,7 +849,43 @@ static av_cold void uninit(AVFilterContext *ctx)
     // sort matchinfo array based on timediff
     qsort(p->mi, p->mi_index, sizeof(MatchInfo), cmpfunc);
 
+    // find longest consecutive run of identical songid
+    count = 0;
+    curr_max = 0;
+
+    if (p->mi) {
+        av_log(ctx, AV_LOG_INFO, "mi has content\n");
+    }
+    else { av_log(ctx, AV_LOG_INFO, "mi is null\n");}
+    prev_songid = p->mi[0].songid;
+
+    for (i = 0; i < p->mi_index; i++) {
+        curr_songid = p->mi[i].songid;
+        if (prev_songid == curr_songid) {
+            count = count + 1;
+            if (i == p->mi_index-1) {
+                if (count > curr_max) {
+                    match_songid = prev_songid;
+                    curr_max = count;
+                }
+            }
+        }
+        else {
+            if (count > curr_max) {
+                match_songid = prev_songid;
+                curr_max = count;
+            }
+            count = 1;
+        }
+
+        prev_songid = curr_songid;
+    }
+
+    // print match songid
+    av_log(ctx, AV_LOG_INFO, "Matched Song ID is %d\n", match_songid);
+
     // free allocated memories
+    av_freep(&p->mi);
     av_freep(&p->data);
     //av_freep(&p->peaks);
     av_freep(&p->cpoints);
