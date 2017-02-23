@@ -156,7 +156,7 @@ static ConstellationPoint *getConstellationPoints(AVFilterContext *ctx, PeakPoin
     while (index < bin_size) {
         cpt[index].frequency = -1;
         cpt[index].time = -1;
-        index = index + 1;
+        index++;
     }
 
     index = 0;
@@ -317,7 +317,7 @@ static int getPeakPoints2(AVFilterContext *ctx, PeakPointsContext *ppc) {
     while (val < chunkSize) {
         bins[t] = val + delta;
         val =  val + delta;
-        t = t + 1;
+        t++;
     }
 
     ppc->bin_size = bin_size;
@@ -385,19 +385,19 @@ static int getPeakPoints2(AVFilterContext *ctx, PeakPointsContext *ppc) {
         //av_log(ctx, AV_LOG_INFO, "calling getFingerprint method\n");
         cp = getConstellationPoints(ctx, ppc, tab, bins, bin_size, ppc->time);
         //av_log(ctx, AV_LOG_INFO, "after fingerprint method\n");
-        ppc->time = ppc->time + 1;
+        ppc->time++;
 
         // assign constellation points to cpoints array
         q = 0;
         while (q < bin_size) {
             ppc->cpoints[curr_index + q] = cp[q];
-            q = q + 1;
+            q++;
         }
 
         curr_index = curr_index + bin_size;
         //av_log(ctx, AV_LOG_INFO, "stored fp\n");
 
-        j = j + 1;
+        j++;
         k = k + chunkSize;
         //av_log(ctx, AV_LOG_INFO, "j is %d and k is %d\n", j, k);
     }
@@ -602,7 +602,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                 npeaks = 0;
                 for (j = 0; j < 8; j++) {
                     if (p->cpoints[i+j].frequency != -1) {
-                        npeaks = npeaks + 1;
+                        npeaks++;
                     }
                 }
 
@@ -750,7 +750,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                         // store info in MatchInfo array
                         p->mi[p->mi_index].matchtime = p->cpoints[i].time - tstart;
                         p->mi[p->mi_index].songid = songid;
-                        p->mi_index = p->mi_index + 1;
+                        p->mi_index++;
                     }
 
                 }
@@ -821,7 +821,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *samples)
     for (i = 0; i < nb_samples; i++) {
         p->data[p->index] = ((double*)(samples->data[0]))[i];
         p->buffFlag = 1;
-        p->index = p->index + 1;
+        p->index++;
 
         // size check
         if (p->index == SIZECHECK) {
@@ -869,7 +869,7 @@ static av_cold void uninit(AVFilterContext *ctx)
             curr_matchtime = p->mi[i].matchtime;
 
             if ((prev_songid == curr_songid) && (prev_matchtime == curr_matchtime)) {
-                count = count + 1;
+                count++;
                 if (i == p->mi_index-1) {
                     if (count > curr_max) {
                         match_songid = prev_songid;
