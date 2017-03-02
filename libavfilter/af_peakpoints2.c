@@ -721,7 +721,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                             match_count = match_count + 1;
                         }
 
-                        if ((match_count > 0) && (count == 7)) {
+                        if ((match_count > 0) && (count == 3)) {
                             //match found
                             //av_log(ctx, AV_LOG_INFO, "match found\n");
                             found = 1;
