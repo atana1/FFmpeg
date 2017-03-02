@@ -540,9 +540,9 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
         //p->mi = av_fast_realloc(p->mi, &p->mi_size, 1000);
 
         // check;
-        if (!p->mi_size || !p->mi) {
+        /*if (!p->mi_size || !p->mi) {
             av_log(ctx, AV_LOG_ERROR, "MatchInfo array not reallocated\n");
-        }
+        }*/
 
         for (i = 0; i < p->size; i++) {
             /*for (j = 0; j < p->bin_size; j++) {
