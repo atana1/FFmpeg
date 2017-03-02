@@ -607,7 +607,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                 }
 
                 // discard entries with less than 3 peak points
-                if (npeaks < 3) {
+                if (npeaks < 2) {
                     continue;
                 }
 
@@ -715,13 +715,13 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
 
                         if (p->cpoints[i+count].frequency != val) {
                             // this hash no a match, try next hash
-                            break;
+                            //break;
                         }
                         else {
                             match_count = match_count + 1;
                         }
 
-                        if ((match_count > 0) && (count == 3)) {
+                        if ((match_count > 0)) {
                             //match found
                             //av_log(ctx, AV_LOG_INFO, "match found\n");
                             found = 1;
