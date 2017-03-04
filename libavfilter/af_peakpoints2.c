@@ -67,6 +67,7 @@ typedef struct {
     int isOnce;
     int buffFlag;
     int bin_size;
+    float *window_func_lut;
     ConstellationPoint *cpoints;
     MatchInfo *mi;
     int mi_size;
@@ -278,8 +279,6 @@ static int getPeakPoints2(AVFilterContext *ctx, PeakPointsContext *ppc) {
     int i, m, k, size, chunkSize, pSize, chunkSampleSize, resSize;
     int j, q, inverse, delta, bin_size, val, curr_index, t;
     int *bins;
-    float overlap;
-    float *window_func_lut;
     //double *fft_res;
     //void *avc;
     ConstellationPoint *cp;
@@ -353,9 +352,6 @@ static int getPeakPoints2(AVFilterContext *ctx, PeakPointsContext *ppc) {
     //rdftC = av_rdft_init(m, DFT_R2C);
     inverse = 0;
     fftc = av_fft_init(m, inverse);
-
-    window_func_lut = av_realloc_f(window_func_lut, m, sizeof(*window_func_lut));
-    ff_generate_window_func(window_func_lut, m, WFUNC_HAMMING, &overlap);
 
     /*data = av_malloc_array(chunkSize, sizeof(FFTSample));
 
@@ -462,6 +458,7 @@ AVFILTER_DEFINE_CLASS(peakpoints2);
 static av_cold int init(AVFilterContext *ctx)
 {
     PeakPointsContext *p = ctx->priv;
+    float overlap;
 
     if (p->windowSize < 1024 || p->windowSize > SIZECHECK) {
         av_log(ctx, AV_LOG_ERROR, "window size must be in range 16 to %d\n", SIZECHECK);
@@ -486,6 +483,9 @@ static av_cold int init(AVFilterContext *ctx)
     p->mi_index = 0;
     p->mi = NULL;
     p->data = av_malloc_array(SIZECHECK, sizeof(double));
+
+    p->window_func_lut = av_malloc_array(log2(p->windowSize), sizeof(float));
+    ff_generate_window_func(p->window_func_lut, log2(p->windowSize) , WFUNC_HAMMING, &overlap);
 
     if (!p->data) {
         av_log(ctx, AV_LOG_ERROR, "Cann't allocate memmory for audio data\n");
