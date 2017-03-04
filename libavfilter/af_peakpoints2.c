@@ -27,6 +27,7 @@
 #include "audio.h"
 #include "libavutil/opt.h"
 #include "libavutil/internal.h"
+#include "window_func.h"
 
 #include <fcntl.h>
 
@@ -277,6 +278,8 @@ static int getPeakPoints2(AVFilterContext *ctx, PeakPointsContext *ppc) {
     int i, m, k, size, chunkSize, pSize, chunkSampleSize, resSize;
     int j, q, inverse, delta, bin_size, val, curr_index, t;
     int *bins;
+    float overlap;
+    float *window_func_lut;
     //double *fft_res;
     //void *avc;
     ConstellationPoint *cp;
@@ -350,6 +353,9 @@ static int getPeakPoints2(AVFilterContext *ctx, PeakPointsContext *ppc) {
     //rdftC = av_rdft_init(m, DFT_R2C);
     inverse = 0;
     fftc = av_fft_init(m, inverse);
+
+    window_func_lut = av_realloc_f(window_func_lut, m, sizeof(*window_func_lut));
+    ff_generate_window_func(window_func_lut, m, WFUNC_HAMMING, &overlap);
 
     /*data = av_malloc_array(chunkSize, sizeof(FFTSample));
 
