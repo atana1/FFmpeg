@@ -371,7 +371,7 @@ static int getPeakPoints2(AVFilterContext *ctx, PeakPointsContext *ppc) {
         //copy data; put imaginary part as 0
         for (i = 0; i < chunkSize; i++) {
             //data[i] = ppc->data[i+k];
-            tab[i].re = ppc->data[i+k];
+            tab[i].re = ppc->data[i+k] * ppc->window_func_lut[i];
             tab[i].im = 0.0;
         }
         //calculate FFT
