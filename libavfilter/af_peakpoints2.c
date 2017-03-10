@@ -277,7 +277,7 @@ static ConstellationPoint *getConstellationPoints(AVFilterContext *ctx, PeakPoin
 /* Get peaks points from windowed frequency domain data*/
 static int getPeakPoints2(AVFilterContext *ctx, PeakPointsContext *ppc) {
     int i, m, k, size, chunkSize, pSize, chunkSampleSize, resSize;
-    int j, q, inverse, delta, bin_size, val, curr_index, t;
+    int j, q, inverse, delta, bin_size, val, curr_index, t, lim;
     int *bins;
     //double *fft_res;
     //void *avc;
@@ -365,15 +365,20 @@ static int getPeakPoints2(AVFilterContext *ctx, PeakPointsContext *ppc) {
     k = 0;
     j = 0;
     curr_index = 0;
+    i = 0;
+    lim = 0;
     //av_log(ctx, AV_LOG_INFO, "resSize is : %d\n", resSize);
     while (k < resSize) {
         //av_log(ctx, AV_LOG_INFO, "inside while loop\n");
         //copy data; put imaginary part as 0
         for (i = 0; i < chunkSize; i++) {
             //data[i] = ppc->data[i+k];
-            tab[i].re = ppc->data[i+k] * ppc->window_func_lut[i];
+            tab[i].re = ppc->data[i+k-lim] * ppc->window_func_lut[i];
             tab[i].im = 0.0;
         }
+
+        // apply logic to get overlap ffts
+        lim = 512;
         //calculate FFT
         //av_rdft_calc(rdftC, data);
         av_fft_permute(fftc, tab);
@@ -484,8 +489,8 @@ static av_cold int init(AVFilterContext *ctx)
     p->mi = NULL;
     p->data = av_malloc_array(SIZECHECK, sizeof(double));
 
-    p->window_func_lut = av_malloc_array(log2(p->windowSize), sizeof(float));
-    ff_generate_window_func(p->window_func_lut, log2(p->windowSize) , WFUNC_HAMMING, &overlap);
+    p->window_func_lut = av_malloc_array(p->windowSize, sizeof(float));
+    ff_generate_window_func(p->window_func_lut, p->windowSize , WFUNC_HAMMING, &overlap);
 
     if (!p->data) {
         av_log(ctx, AV_LOG_ERROR, "Cann't allocate memmory for audio data\n");
