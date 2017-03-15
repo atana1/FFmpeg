@@ -35,7 +35,8 @@
 #include <unistd.h>
 #endif
 
-#define SIZECHECK 4096*5
+//#define SIZECHECK 4096*5
+#define SIZECHECK 1024
 /* Upper and Lower Limit of sound frequency in audible range */
 #define UPPER_LIMIT 300
 #define LOWER_LIMIT 20
@@ -373,12 +374,12 @@ static int getPeakPoints2(AVFilterContext *ctx, PeakPointsContext *ppc) {
         //copy data; put imaginary part as 0
         for (i = 0; i < chunkSize; i++) {
             //data[i] = ppc->data[i+k];
-            tab[i].re = ppc->data[i+k-lim] * ppc->window_func_lut[i];
+            tab[i].re = ppc->data[i+lim] * ppc->window_func_lut[i];
             tab[i].im = 0.0;
         }
 
         // apply logic to get overlap ffts
-        lim = 512;
+        lim += 512;
         //calculate FFT
         //av_rdft_calc(rdftC, data);
         av_fft_permute(fftc, tab);
