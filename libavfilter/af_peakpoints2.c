@@ -840,7 +840,8 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *samples)
             // get peak points stats
             ppointsStats(ctx, p);
             //p->time = p->time + 1;
-            p->index = 0;
+            memmove(p->data, p->data, SIZECHECK/2);
+            p->index = 512;
             p->buffFlag = 1;
         }
     }
