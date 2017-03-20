@@ -36,7 +36,7 @@
 #endif
 
 //#define SIZECHECK 4096*5
-#define SIZECHECK 1024
+#define SIZECHECK 1024*2
 /* Upper and Lower Limit of sound frequency in audible range */
 #define UPPER_LIMIT 300
 #define LOWER_LIMIT 20
@@ -379,7 +379,7 @@ static int getPeakPoints2(AVFilterContext *ctx, PeakPointsContext *ppc) {
         }
 
         // apply logic to get overlap ffts
-        lim += 512;
+        lim += ppc->windowSize/2;
         //calculate FFT
         //av_rdft_calc(rdftC, data);
         av_fft_permute(fftc, tab);
@@ -453,7 +453,7 @@ static int getPeakPoints2(AVFilterContext *ctx, PeakPointsContext *ppc) {
 #define OFFSET(x) offsetof(PeakPointsContext, x)
 
 static const AVOption peakpoints2_options[] = {
-    { "wsize",  "set window size", OFFSET(windowSize),  AV_OPT_TYPE_INT,    {.i64=1024},    0, INT_MAX},
+    { "wsize",  "set window size", OFFSET(windowSize),  AV_OPT_TYPE_INT,    {.i64=2048},    0, INT_MAX},
     { "mode", "do lookup for the song or store the song", OFFSET(mode), AV_OPT_TYPE_INT, {.i64=1}, 0, 1},
     { "song_id", "song identifier while storing a song", OFFSET(song_id), AV_OPT_TYPE_INT, {.i64=-1}, -1, INT_MAX},
     { NULL },
@@ -836,12 +836,12 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *samples)
         p->index++;
 
         // size check
-        if (p->index == SIZECHECK) {
+        if (p->index == p->windowSize) {
             // get peak points stats
             ppointsStats(ctx, p);
             //p->time = p->time + 1;
-            memmove(p->data, p->data + p->windowSize/2, sizeof(*p->data)*SIZECHECK/2);
-            p->index = 512;
+            memmove(p->data, p->data + p->windowSize/2, sizeof(*p->data)*(p->windowSize/2));
+            p->index = p->windowSize/2;
             p->buffFlag = 1;
         }
     }
