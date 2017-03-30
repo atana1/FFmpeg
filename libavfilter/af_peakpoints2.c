@@ -36,7 +36,7 @@
 #endif
 
 //#define SIZECHECK 4096*5
-#define SIZECHECK 1024*2
+#define SIZECHECK 1024*4
 /* Upper and Lower Limit of sound frequency in audible range */
 #define UPPER_LIMIT 300
 #define LOWER_LIMIT 20
@@ -453,7 +453,7 @@ static int getPeakPoints2(AVFilterContext *ctx, PeakPointsContext *ppc) {
 #define OFFSET(x) offsetof(PeakPointsContext, x)
 
 static const AVOption peakpoints2_options[] = {
-    { "wsize",  "set window size", OFFSET(windowSize),  AV_OPT_TYPE_INT,    {.i64=2048},    0, INT_MAX},
+    { "wsize",  "set window size", OFFSET(windowSize),  AV_OPT_TYPE_INT,    {.i64=4096},    0, INT_MAX},
     { "mode", "do lookup for the song or store the song", OFFSET(mode), AV_OPT_TYPE_INT, {.i64=1}, 0, 1},
     { "song_id", "song identifier while storing a song", OFFSET(song_id), AV_OPT_TYPE_INT, {.i64=-1}, -1, INT_MAX},
     { NULL },
@@ -519,8 +519,8 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
         val, count, retval, match_count, found, npeaks, songid, tstart;
     size_t t1, t2, t3, t4;
     char *filename;
-    uint8_t entry[34];
-    uint8_t buff[34];
+    uint8_t entry[130];
+    uint8_t buff[130];
     PutByteContext pb;
     GetByteContext gb;
 
@@ -582,7 +582,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
             }*/
 
             // considering 8 points now
-            if (i+7 >= p->size) {
+            if (i+31 >= p->size) {
                 break;
             }
 
@@ -612,7 +612,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                 // write data to putbyte context
                 // skip entires that have less than 3 freq peaks
                 npeaks = 0;
-                for (j = 0; j < 8; j++) {
+                for (j = 0; j < 32; j++) {
                     if (p->cpoints[i+j].frequency != -1) {
                         npeaks++;
                     }
@@ -623,7 +623,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                     continue;
                 }
 
-                for (j = 0; j < 8; j++) {
+                for (j = 0; j < 32; j++) {
                     bytestream2_put_le16(&pb, p->cpoints[i+j].frequency);
                     /*if (j != 7) {
                         bytestream2_put_le16(pb, ',');
@@ -632,7 +632,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
 
                 //bytestream2_put_le16(pb, ':');
 
-                for (j = 0; j < 8; j++) {
+                for (j = 0; j < 32; j++) {
                     bytestream2_put_le16(&pb, p->cpoints[i+j].time);
                     /*if (j != 7) {
                         bytestream2_put_le16(pb, ',');
@@ -691,7 +691,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                     bytestream2_init(&gb, buff, sizeof(buff));
 
                     // 17 is total number of items stored in one hash
-                    for (count = 0; count < 8; count++) {
+                    for (count = 0; count < 32; count++) {
                         val = (int16_t)bytestream2_get_le16(&gb);
                         // match
                         /*if (!(match_time) && p->cpoints[i+count].frequency != val) {
@@ -742,7 +742,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
 
                     if (found) {
                         // skipping time values
-                        for (count = 0; count < 8; count++) {
+                        for (count = 0; count < 32; count++) {
                             val = (int16_t)bytestream2_get_le16(&gb);
 
                             if (count == 0) {
@@ -840,8 +840,8 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *samples)
             // get peak points stats
             ppointsStats(ctx, p);
             //p->time = p->time + 1;
-            memmove(p->data, p->data + p->windowSize/2, sizeof(*p->data)*(p->windowSize/2));
-            p->index = p->windowSize/2;
+            memmove(p->data, p->data + p->windowSize/4, sizeof(*p->data)*(p->windowSize/4));
+            p->index = p->windowSize/4;
             p->buffFlag = 1;
         }
     }
