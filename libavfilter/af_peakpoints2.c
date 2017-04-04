@@ -56,6 +56,12 @@ typedef struct {
     int songid;
 } MatchInfo;
 
+/* Different Modes */
+enum Mode {
+    ADD,
+    LOOKUP,
+};
+
 /* Structure to contain peak points context */
 typedef struct {
     const AVClass *class;
@@ -454,7 +460,8 @@ static int getPeakPoints2(AVFilterContext *ctx, PeakPointsContext *ppc) {
 
 static const AVOption peakpoints2_options[] = {
     { "wsize",  "set window size", OFFSET(windowSize),  AV_OPT_TYPE_INT,    {.i64=4096},    0, INT_MAX},
-    { "mode", "do lookup for the song or store the song", OFFSET(mode), AV_OPT_TYPE_INT, {.i64=1}, 0, 1},
+    { "add", "store the song", 0, AV_OPT_TYPE_CONST, {.i64=ADD}, INT_MIN, INT_MAX, "mode"},
+    { "lookup", "lookup for the song", 0, AV_OPT_TYPE_CONST, {.i64=LOOKUP}, INT_MIN, INT_MAX, "mode"},
     { "song_id", "song identifier while storing a song", OFFSET(song_id), AV_OPT_TYPE_INT, {.i64=-1}, -1, INT_MAX},
     { NULL },
 };
