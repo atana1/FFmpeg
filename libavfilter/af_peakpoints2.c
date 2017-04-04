@@ -67,6 +67,7 @@ typedef struct {
     const AVClass *class;
     double *data;
     int mode;
+    int peaks_per_window;
     int nsamples;
     int index;
     int song_id;
@@ -465,6 +466,7 @@ static const AVOption peakpoints2_options[] = {
     { "add", "store the song", 0, AV_OPT_TYPE_CONST, {.i64=ADD}, INT_MIN, INT_MAX, FLAGS, "mode"},
     { "lookup", "lookup for the song", 0, AV_OPT_TYPE_CONST, {.i64=LOOKUP}, INT_MIN, INT_MAX, FLAGS, "mode"},
     { "song_id", "song identifier while storing a song", OFFSET(song_id), AV_OPT_TYPE_INT, {.i64=-1}, -1, INT_MAX},
+    {"ppw", "peaks to consider for peakpoints algorithm", OFFSET(peaks_per_window), AV_OPT_TYPE_INT, {.i64=32}, 0, INT_MAX},
     { NULL },
 };
 
@@ -528,8 +530,10 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
         val, count, retval, match_count, found, npeaks, songid, tstart;
     size_t t1, t2, t3, t4;
     char *filename;
-    uint8_t entry[130];
-    uint8_t buff[130];
+    uint8_t *entry, *buff;
+
+    entry = av_malloc_array(p->peaks_per_window * 4 + 2, sizeof(*entry));
+    buff = av_malloc_array(p->peaks_per_window * 4 + 2, sizeof(*buff));
     PutByteContext pb;
     GetByteContext gb;
 
@@ -591,7 +595,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
             }*/
 
             // considering 8 points now
-            if (i+31 >= p->size) {
+            if (i+p->peaks_per_window-1 >= p->size) {
                 break;
             }
 
@@ -621,7 +625,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                 // write data to putbyte context
                 // skip entires that have less than 3 freq peaks
                 npeaks = 0;
-                for (j = 0; j < 32; j++) {
+                for (j = 0; j < p->peaks_per_window; j++) {
                     if (p->cpoints[i+j].frequency != -1) {
                         npeaks++;
                     }
@@ -632,7 +636,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                     continue;
                 }
 
-                for (j = 0; j < 32; j++) {
+                for (j = 0; j < p->peaks_per_window; j++) {
                     bytestream2_put_le16(&pb, p->cpoints[i+j].frequency);
                     /*if (j != 7) {
                         bytestream2_put_le16(pb, ',');
@@ -641,7 +645,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
 
                 //bytestream2_put_le16(pb, ':');
 
-                for (j = 0; j < 32; j++) {
+                for (j = 0; j < p->peaks_per_window; j++) {
                     bytestream2_put_le16(&pb, p->cpoints[i+j].time);
                     /*if (j != 7) {
                         bytestream2_put_le16(pb, ',');
@@ -700,7 +704,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
                     bytestream2_init(&gb, buff, sizeof(buff));
 
                     // 17 is total number of items stored in one hash
-                    for (count = 0; count < 32; count++) {
+                    for (count = 0; count < p->peaks_per_window; count++) {
                         val = (int16_t)bytestream2_get_le16(&gb);
                         // match
                         /*if (!(match_time) && p->cpoints[i+count].frequency != val) {
@@ -751,7 +755,7 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
 
                     if (found) {
                         // skipping time values
-                        for (count = 0; count < 32; count++) {
+                        for (count = 0; count < p->peaks_per_window; count++) {
                             val = (int16_t)bytestream2_get_le16(&gb);
 
                             if (count == 0) {
@@ -783,6 +787,8 @@ static void ppointsStats(AVFilterContext *ctx, PeakPointsContext *p) {
 
         // free peaks and set size to zero
         //av_freep(&p->peaks);
+        av_freep(&entry);
+        av_freep(&buff);
         av_freep(&p->cpoints); // check if memory to be freed hierarchial fashion
         //free_fingerprintstruct(ctx, p->cpoints, p->size);
         p->size = 0;
